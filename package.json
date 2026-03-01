@@ -1,0 +1,56 @@
+{
+    "name": "extension-permissions",
+    "version": "0.1.0",
+    "description": "Chrome extension permission management — check, request, explain, and monitor permissions. Smart optional permission flows and host permission helpers for Manifest V3.",
+    "author": "Zovo <hello@zovo.one>",
+    "license": "MIT",
+    "keywords": [
+        "chrome-extension",
+        "permissions",
+        "optional-permissions",
+        "host-permissions",
+        "manifest-v3",
+        "chrome-api",
+        "permission-request",
+        "browser-extension",
+        "privacy",
+        "activeTab"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/theluckystrike/extension-permissions.git"
+    },
+    "homepage": "https://github.com/theluckystrike/extension-permissions",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "test": "jest",
+        "lint": "eslint src --ext .ts",
+        "prepublishOnly": "npm run build"
+    },
+    "peerDependencies": {
+        "@types/chrome": ">=0.0.200"
+    },
+    "peerDependenciesMeta": {
+        "@types/chrome": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@types/chrome": "^0.0.260",
+        "@types/jest": "^29.5.12",
+        "@typescript-eslint/eslint-plugin": "^6.19.1",
+        "@typescript-eslint/parser": "^6.19.1",
+        "eslint": "^8.56.0",
+        "jest": "^29.7.0",
+        "ts-jest": "^29.1.2",
+        "typescript": "^5.3.3"
+    }
+}
