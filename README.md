@@ -1,162 +1,221 @@
 # extension-permissions
 
-Manage optional Chrome extension permissions with user-friendly prompts.
+TypeScript library for managing Chrome extension permissions in Manifest V3. Check, request, explain, revoke, and monitor permissions with clean async APIs.
 
-## Overview
-
-extension-permissions provides utilities to request optional permissions in a way that explains why each permission is needed, improving user trust and installation rates.
-
-## Installation
+INSTALLATION
 
 ```bash
 npm install extension-permissions
 ```
 
-## Usage
+Requires @types/chrome as an optional peer dependency for full type support.
 
-### Basic Permission Request
+QUICK START
 
-```javascript
-import { PermissionManager } from 'extension-permissions';
-
-const perms = new PermissionManager();
-
-// Request a permission with explanation
-await perms.request('tabs', {
-  reason: 'We need access to tabs to show you relevant information',
-});
+```typescript
+import {
+  PermissionChecker,
+  PermissionRequester,
+  PermissionExplainer,
+  OptionalPermissions,
+  HostPermissions,
+  PermissionMonitor,
+} from 'extension-permissions';
 ```
 
-### Multiple Permissions
+API
 
-```javascript
-const perms = new PermissionManager();
+PermissionChecker
 
-const results = await perms.requestMany([
-  { permission: 'tabs', reason: 'To display tab information' },
-  { permission: 'storage', reason: 'To save your preferences' },
-  { permission: 'bookmarks', reason: 'To help you manage bookmarks' },
-]);
+Static methods for reading the current permission state.
 
-console.log(results);
-// { tabs: true, storage: true, bookmarks: false }
-```
+```typescript
+// Check if specific permissions are granted
+const hasTabs = await PermissionChecker.has(['tabs']);
 
-### Checking Permissions
-
-```javascript
-const perms = new PermissionManager();
-
-// Check if we have a permission
-const hasTabs = await perms.has('tabs');
+// Check if specific origins are granted
+const hasOrigin = await PermissionChecker.hasOrigins(['https://example.com/*']);
 
 // Get all granted permissions
-const granted = await perms.getGranted();
+const all = await PermissionChecker.getAll();
+
+// Get permissions listed in the manifest
+const manifest = PermissionChecker.getManifestPermissions();
+
+// Get optional permissions from the manifest
+const optional = PermissionChecker.getOptionalPermissions();
+
+// Find which optional permissions are not yet granted
+const missing = await PermissionChecker.getMissing();
+
+// Full summary of permission state
+const summary = await PermissionChecker.getSummary();
+// Returns { required, optional, granted, missing, origins }
 ```
 
-### With UI Prompts
+PermissionRequester
 
-```javascript
-const perms = new PermissionManager({
-  // Custom UI render function
-  renderPrompt: (permissions, onAccept, onDecline) => {
-    const modal = createPermissionModal(permissions);
-    modal.onAccept = onAccept;
-    modal.onDecline = onDecline;
-    document.body.appendChild(modal);
-  },
+Request and revoke permissions with structured results.
+
+```typescript
+// Request permissions (returns RequestResult with granted, permissions, deniedPermissions)
+const result = await PermissionRequester.request(['tabs', 'storage']);
+
+// Request with origins
+const result = await PermissionRequester.request(['cookies'], ['https://api.example.com/*']);
+
+// Request permissions one at a time with a callback after each
+const { granted, denied } = await PermissionRequester.requestSequentially(
+  ['tabs', 'bookmarks', 'storage'],
+  (perm, wasGranted) => console.log(`${perm} ${wasGranted ? 'granted' : 'denied'}`)
+);
+
+// Revoke permissions
+await PermissionRequester.revoke(['tabs']);
+```
+
+The RequestResult type returned by request() looks like this.
+
+```typescript
+interface RequestResult {
+  granted: boolean;
+  permissions: string[];
+  deniedPermissions: string[];
+}
+```
+
+PermissionExplainer
+
+Human-readable descriptions and risk levels for Chrome permissions.
+
+```typescript
+// Get a plain-English explanation of a permission
+PermissionExplainer.explain('tabs');
+// "See your open tabs (URLs and titles)"
+
+// Explain multiple permissions at once
+const explanations = PermissionExplainer.explainAll(['tabs', 'cookies', 'storage']);
+// [{ permission: 'tabs', explanation: '...' }, ...]
+
+// Get risk level (low, medium, or high)
+PermissionExplainer.getRisk('debugger');  // 'high'
+PermissionExplainer.getRisk('cookies');   // 'medium'
+PermissionExplainer.getRisk('storage');   // 'low'
+```
+
+Covers 35+ Chrome permissions with built-in explanations. Unknown permissions get a sensible fallback string.
+
+OptionalPermissions
+
+UI-oriented flows for requesting permissions with context.
+
+```typescript
+// Request with a reason, plus onGranted/onDenied callbacks
+await OptionalPermissions.requestWithReason({
+  permissions: ['notifications'],
+  reason: 'Send alerts when background tasks finish',
+  onGranted: () => console.log('enabled'),
+  onDenied: () => console.log('user declined'),
 });
 
-await perms.request('notifications', {
-  reason: 'We need notifications to alert you about important updates',
-  // Custom feature explanation
-  feature: {
-    title: 'Stay Notified',
-    benefits: ['Get alerts when tasks complete', 'Never miss important updates'],
-  },
+// Request only on first use of a feature (stores state in chrome.storage.local)
+const allowed = await OptionalPermissions.requestOnFirstUse(
+  'export-feature',
+  ['downloads'],
+  ['https://cdn.example.com/*']
+);
+```
+
+The PermissionFlowOptions type accepted by requestWithReason() looks like this.
+
+```typescript
+interface PermissionFlowOptions {
+  permissions: string[];
+  origins?: string[];
+  reason: string;
+  onGranted?: () => void;
+  onDenied?: () => void;
+}
+```
+
+HostPermissions
+
+Manage host/origin permissions for Manifest V3.
+
+```typescript
+// Check access to a specific URL
+const canAccess = await HostPermissions.hasAccess('https://example.com/api/data');
+
+// Request access to an origin
+const granted = await HostPermissions.requestAccess('https://example.com/api/data');
+
+// List all granted origins
+const origins = await HostPermissions.getGrantedOrigins();
+
+// Revoke access to an origin
+await HostPermissions.revokeAccess('https://example.com/*');
+```
+
+PermissionMonitor
+
+Watch for permission changes by polling (Chrome has no native onChange event for permissions).
+
+```typescript
+const monitor = new PermissionMonitor();
+await monitor.start();
+
+// Subscribe to changes, returns an unsubscribe function
+const unsubscribe = monitor.onChange((added, removed) => {
+  console.log('Added permissions', added);
+  console.log('Removed permissions', removed);
 });
+
+// Later, stop listening
+unsubscribe();
 ```
 
-## API
+Polls every 5 seconds and fires callbacks only when the permission set actually changes.
 
-### PermissionManager Options
+MANIFEST SETUP
 
-| Option | Type | Description |
-|--------|------|-------------|
-| renderPrompt | function | Custom prompt UI renderer |
-| permissionStrings | object | Custom permission explanations |
-
-### Methods
-
-- `request(permission, options)` - Request single permission
-- `requestMany(permissions)` - Request multiple permissions
-- `has(permission)` - Check if permission is granted
-- `getGranted()` - Get all granted permissions
-- `remove(permission)` - Remove a permission
-
-### Options for request()
-
-| Option | Type | Description |
-|--------|------|-------------|
-| reason | string | Explanation for why permission is needed |
-| feature | object | Additional feature context |
-| required | boolean | If this is a required permission |
-
-## Best Practices
-
-### Request Permissions Contextually
-
-```javascript
-// ❌ Don't ask for all permissions at install
-const perms = new PermissionManager();
-await perms.requestMany([...allPermissions]);
-
-// ✅ Ask when user needs the feature
-document.getElementById('bookmark-btn').onclick = async () => {
-  const hasPermission = await perms.has('bookmarks');
-  if (!hasPermission) {
-    await perms.request('bookmarks', {
-      reason: 'Enable the bookmark feature to save your favorite pages',
-    });
-  }
-  // ... use bookmarks API
-};
-```
-
-### Explain Each Permission
-
-```javascript
-const permissionReasons = {
-  tabs: 'To show you relevant information for each tab',
-  bookmarks: 'To let you save and organize your favorite pages',
-  notifications: 'To send you alerts when background tasks complete',
-  storage: 'To remember your preferences between sessions',
-  activeTab: 'To access the current page when you click the extension',
-};
-```
-
-## Manifest Configuration
-
-In `manifest.json`:
+List permissions you plan to request at runtime under optional_permissions in your manifest.json.
 
 ```json
 {
-  "permissions": [],
+  "manifest_version": 3,
+  "permissions": ["storage"],
   "optional_permissions": [
     "tabs",
-    "bookmarks", 
+    "bookmarks",
     "notifications",
-    "storage",
+    "cookies",
     "activeTab"
+  ],
+  "optional_host_permissions": [
+    "https://*.example.com/*"
   ]
 }
 ```
 
-## Browser Support
+DEVELOPMENT
+
+```bash
+npm install
+npm run build
+npm test
+npm run lint
+```
+
+BROWSER SUPPORT
 
 - Chrome 90+
 - Edge 90+
+- Any Chromium-based browser supporting Manifest V3
 
-## License
+LICENSE
 
-MIT
+MIT. See LICENSE file.
+
+ABOUT
+
+Built by theluckystrike. Part of the Zovo project at zovo.one.
