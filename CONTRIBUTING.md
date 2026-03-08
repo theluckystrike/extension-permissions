@@ -55,3 +55,7 @@ CODE STYLE
 LICENSE
 
 By contributing you agree that your contributions will be licensed under the MIT license that covers this project.
+
+---
+
+Built at [zovo.one](https://zovo.one) by [theluckystrike](https://github.com/theluckystrike)
